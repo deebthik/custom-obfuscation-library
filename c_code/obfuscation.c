@@ -203,7 +203,7 @@ int handleErrors(void)
 
  
 
-void obfuscate(char *indata){
+ char *obfuscate(char *indata){
 
    int ret = 0; 
    int ciphertext_len = 0; 
@@ -237,12 +237,12 @@ void obfuscate(char *indata){
 	int j;
 	for(j = 0; j < 16; j++)
 	sprintf(&secretKey_hex[2*j], "%02x", key[j]);
-
-	//stripping off a leading 0 didn't work like in the Java obfuscation code, so instead a possible leading 0 is being replaced with 1 to avoid similar issues
-	if (secretKey_hex[0] == '0'){
-		secretKey_hex[0] = '1';
+	
+	//stripping off leading zeros to avoid problems with XORing with binary strings later on
+	int z;
+	if( ( z = strspn(secretKey_hex, "0" ) ) != 0 && secretKey_hex[z] != '\0' ) {
+		 sprintf(secretKey_hex, "%s", &secretKey_hex[z]);
 	}
-
 
 	//taking first 16 chars of above hex to be used as secret key for encryption
 	char secretKey_final[16];
@@ -256,7 +256,7 @@ void obfuscate(char *indata){
 	}
 	secretKey_final[c] = '\0';
 
-	
+
 
    	//generating 16 random bytes for IV
     if(!RAND_bytes(iv, sizeof iv)) {
@@ -444,7 +444,17 @@ void obfuscate(char *indata){
 	strcat(prefinalmsg, crc1_hex);
 
 	//taking crc32 of above, converting to hex and appending it -> first layer -> second layer
-	char finalmsg[strlen(prefinalmsg)+8];
+	//char finalmsg[strlen(prefinalmsg)+8];
+        int prefinalmsglen = 0;
+        prefinalmsglen = strlen(prefinalmsg)+8 ; 
+        if(!prefinalmsglen)
+          prefinalmsglen = 1024;
+        char *finalmsg = malloc(prefinalmsglen);
+        if(finalmsg == NULL){
+           fprintf(stderr, "Fatal: failed to allocate %d bytes.\n", prefinalmsglen);
+           return NULL;
+        }
+
 	uLong crc2 = crc32(0L, Z_NULL, 0);
 	crc2 = crc32(crc2, prefinalmsg, strlen(prefinalmsg));
 	char crc2_hex[32];
@@ -470,8 +480,7 @@ void obfuscate(char *indata){
 	
 	//printf("\nciphertext base 64 ------ %s\n", ciphertext_base64);
 	//printf("\nxored string hex ------ %s\n", xored_string_hex);
-	//printf("\niv final ------ %s\n", iv_final);
-	//printf("\nsecretkeyfinal ------ %s\n", secretKey_final);		
+	//printf("\niv final ------ %s\n", iv_final);	
 
 	//printf("\ncrc1 hex ------ %s\n", crc1_hex);
 	//printf("\ncrc2 hex ------ %s\n", crc2_hex);
@@ -479,6 +488,7 @@ void obfuscate(char *indata){
 
 	//final msg -> (encrypted_data + xored_key + ivi) + crc32(encrypted_data + xored_key + ivi) + crc32(crc32(encrypted_data + xored_key))
 
+	//printf("\nencryptedData-------------->%s\n\n", finalmsg);
 	//printf("%s", finalmsg);
 
 
@@ -495,7 +505,8 @@ void obfuscate(char *indata){
     }
     fprintf(fptr, "%s", finalmsg);
     fclose(fptr);
-	
+
+   return finalmsg;
 
 
 }
@@ -508,7 +519,7 @@ int main(){
 //reading random string file created by java for testing
 char c[1000];
 FILE *fptr;
-if ((fptr = fopen("/home/deebthik/Desktop/obfuscation_test/og.txt", "r")) == NULL) {
+if ((fptr = fopen("og.txt", "r")) == NULL) {
     printf("Error! File cannot be opened.");
     // Program exits if the file pointer returns NULL.
     exit(1);
@@ -519,10 +530,10 @@ fscanf(fptr, "%[^\n]", c);
 //printf("Data from the file:\n%s", c);
 fclose(fptr);
 
-obfuscate(c);
+char *obs = obfuscate(c);
+printf("obfuscated data is [%s] \n", obs);    
 
-
-//char *data = "fzhQGTk6yoSHd-2o2Yi76^t32yL(@NK0PfI+@fQFIm;:cJ*9I&;@ndZC3xHkbM2$c.N6MO(;$1VDs3BZdI2AO4#Bv%l:W2TrY9LDqy;aX_PTeDQe)p:ojZ;tK::y9DEs3CV:Ows5W3_M81F$3xeDxi.%q$YY1*GLnd46;6b2rXlCGCV4WZ(ql%RBEj_vPeb96mDiOb!Xji%xvTr0yUTLlPGEd0Vd@ttmX%fO64lO-YRogTXZ4+NU!J^f7!!7MSEIj*8mk*i_HxIAQ5NS16$n_-(#dSxk)tA@m2OIy%X)eEY)kt6Q)aSG1&O71rxT_87(jFGYdFp!3FH_Joya@z2su@0=2=EcMt6M51I9BrxfNQ!1uZ.TMlV-dHfDpmbGeo9qvn:j0TUS-3kC$-9adV:yA;5;=q=oF5n9QFVMmQ_va5pi6%f^LEW5*y)X^^;f$fOKYNT+GPt60A26a#-8+^wU6k2rzTm84X6Z+8^UTh6fzEF7pV)*rS_PQPbQgS-bKOLHHc!0=o$$IPnPeT@.OtcG2M6BE.:lmL);5aZnY^AX(5XX=9+p$42yhsG+LAJpm!YP;NbmM!8p&-=a2HFTC1lUmCeSz-_rth=5Z:plq&YeI374&.Ql%@-%g;n5uWM4.RCtdR%K;@Kbe7-q%&=oA!tA8AmTcAUaKDLbTwE:HvHsdup(_qSFyj;1@96A66UyUm&;6b)@nDZsWuT.POrHW6_abP3WBiVpH6VA+3FIR_&qZ.^Y2Uw)9AOQZ)";
+//char *data = "helloworld";
 //obfuscate(data);
 
 return 0;
